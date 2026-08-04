@@ -1,0 +1,154 @@
+package com.example.devicetrust
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.devicetrust.detection.*
+import com.example.devicetrust.ui.theme.DeviceTrustTheme
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContent { DeviceTrustTheme { TrustRoute() } }
+    }
+}
+
+@Composable
+private fun TrustRoute(viewModel: TrustViewModel = viewModel()) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    TrustScreen(state = state, onScan = viewModel::scan)
+}
+
+@Composable
+fun TrustScreen(state: TrustUiState, onScan: () -> Unit, modifier: Modifier = Modifier) {
+    Scaffold(modifier = modifier.fillMaxSize(), containerColor = MaterialTheme.colorScheme.background) { padding ->
+        when {
+            state.scanning -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    CircularProgressIndicator()
+                    Text("Inspecting device evidence…")
+                }
+            }
+            state.error != null -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Assessment unavailable", style = MaterialTheme.typography.headlineSmall)
+                    Text(state.error)
+                    Button(onClick = onScan) { Text("Try again") }
+                }
+            }
+            state.assessment != null -> AssessmentContent(state.assessment, onScan, Modifier.padding(padding))
+        }
+    }
+}
+
+@Composable
+private fun AssessmentContent(assessment: TrustAssessment, onScan: () -> Unit, modifier: Modifier = Modifier) {
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item {
+            Text("DEVICE TRUST", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            Text("Environment assessment", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text("Signals are probabilistic. Server-verified Play Integrity should authorize sensitive actions.", color = Color(0xFFA9BAB3))
+        }
+        item { RiskCard(assessment) }
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatusChip("Root / hooks", assessment.isRootSuspected, Modifier.weight(1f))
+                StatusChip("Emulator", assessment.isEmulatorSuspected, Modifier.weight(1f))
+                StatusChip("ROM / boot", assessment.isCustomRomSuspected, Modifier.weight(1f))
+            }
+        }
+        item {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Evidence", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                TextButton(onClick = onScan) { Text("Scan again") }
+            }
+        }
+        if (assessment.signals.isEmpty()) item {
+            EvidenceCard("No local risk indicators", "This does not prove the device is genuine or uncompromised.", Color(0xFF5EE3B1))
+        }
+        items(assessment.signals, key = { it.id }) { signal ->
+            EvidenceCard(signal.title, signal.detail, categoryColor(signal.category))
+        }
+    }
+}
+
+@Composable
+private fun RiskCard(assessment: TrustAssessment) {
+    val accent = when (assessment.level) {
+        TrustLevel.TRUSTED -> Color(0xFF5EE3B1)
+        TrustLevel.REVIEW -> Color(0xFFFFCA65)
+        TrustLevel.HIGH_RISK -> Color(0xFFFF7C7C)
+    }
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), shape = RoundedCornerShape(24.dp)) {
+        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(assessment.level.name.replace('_', ' '), color = accent, fontWeight = FontWeight.Bold)
+            Text("${assessment.score}", style = MaterialTheme.typography.displayLarge, fontWeight = FontWeight.Bold)
+            LinearProgressIndicator(progress = { assessment.score / 100f }, modifier = Modifier.fillMaxWidth(), color = accent)
+            Text("Local risk score · ${assessment.signals.size} indicator(s)", color = Color(0xFFA9BAB3))
+        }
+    }
+}
+
+@Composable
+private fun StatusChip(label: String, flagged: Boolean, modifier: Modifier = Modifier) {
+    val color = if (flagged) Color(0xFFFFCA65) else Color(0xFF5EE3B1)
+    Column(modifier.background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp)).padding(12.dp)) {
+        Text(if (flagged) "FLAG" else "CLEAR", color = color, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+        Text(label, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+@Composable
+private fun EvidenceCard(title: String, detail: String, accent: Color) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), shape = RoundedCornerShape(18.dp)) {
+        Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(Modifier.size(8.dp).background(accent, RoundedCornerShape(4.dp)))
+            Column { Text(title, fontWeight = FontWeight.SemiBold); Text(detail, color = Color(0xFFA9BAB3), style = MaterialTheme.typography.bodySmall) }
+        }
+    }
+}
+
+private fun categoryColor(category: SignalCategory) = when (category) {
+    SignalCategory.ROOT -> Color(0xFFFF7C7C)
+    SignalCategory.HOOKING -> Color(0xFFD89BFF)
+    SignalCategory.EMULATOR -> Color(0xFF8BB8FF)
+    SignalCategory.ROM -> Color(0xFFFFCA65)
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun TrustScreenPreview() = DeviceTrustTheme {
+    TrustScreen(
+        TrustUiState(
+            scanning = false,
+            assessment = TrustAssessment(68, TrustLevel.HIGH_RISK, listOf(
+                TrustSignal("mount", SignalCategory.ROOT, 35, "Suspicious mount namespace", "Magisk marker exposed"),
+                TrustSignal("boot", SignalCategory.ROM, 35, "Bootloader unlocked", "ro.boot.flash.locked=0"),
+            )),
+        ),
+        onScan = {},
+    )
+}

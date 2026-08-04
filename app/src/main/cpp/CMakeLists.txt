@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.22.1)
+project(devicetrust)
+add_library(devicetrust SHARED device_trust.cpp)
+target_link_libraries(devicetrust android log)
+target_compile_options(devicetrust PRIVATE -Wall -Wextra -Werror -fstack-protector-strong)
+target_link_options(devicetrust PRIVATE -Wl,-z,relro,-z,now)
