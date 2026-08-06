@@ -21,11 +21,11 @@ dependencyResolutionManagement {
 }
 ```
 
-Then add the library module. Because this is a multi-module repository, the repository name is part of the group:
+Then add the published library:
 
 ```kotlin
 dependencies {
-    implementation("com.github.Xheghun.DeviceTrust:device-trust:0.1.0")
+    implementation("com.github.Xheghun:DeviceTrust:0.1.0")
 }
 ```
 
