@@ -1,15 +1,25 @@
-# DeviceTrust Android
+# DeviceTrust
 
-DeviceTrust is an Android library that collects layered, local risk evidence for root tooling, runtime hooks, emulators, unlocked or degraded Verified Boot, non-production builds, and permissive SELinux. It returns versioned evidence and a policy result rather than a misleading `isRooted` boolean.
+DeviceTrust is an Android library for collecting device integrity signals. It detects indicators associated with rooted devices, runtime instrumentation, emulators, unlocked bootloaders, custom system images, and weakened platform security settings.
 
-## Modules
+The library includes:
 
-- `:device-trust` — publishable Android library containing the public Kotlin API and NDK detector.
-- `:sample` — Compose application that consumes only the library API.
+- A Kotlin API based on coroutines
+- Native Android NDK checks
+- Configurable risk thresholds
+- Versioned evidence models
+- Consumer R8 rules
+- Native binaries for ARM64, ARMv7, x86, and x86_64
 
-## Install from JitPack
+## Requirements
 
-Add JitPack to dependency resolution:
+- Android API 26 or later
+- Kotlin coroutines
+- JitPack repository access
+
+## Installation
+
+Add JitPack to `settings.gradle.kts`:
 
 ```kotlin
 dependencyResolutionManagement {
@@ -21,7 +31,7 @@ dependencyResolutionManagement {
 }
 ```
 
-Then add the published library:
+Add DeviceTrust to the application or library module:
 
 ```kotlin
 dependencies {
@@ -29,69 +39,148 @@ dependencies {
 }
 ```
 
-For a source checkout, use `implementation(project(":device-trust"))` as the sample does. A future Maven Central release will use `io.github.xheghun:device-trust:<version>` after that namespace is verified.
+## Basic usage
 
-## Use
-
-Create one client and call it from a coroutine:
+Create a client and run an assessment from a coroutine:
 
 ```kotlin
-val client = DeviceTrust.create()
-val assessment = client.assess()
+import io.github.devicetrust.DeviceTrust
+import io.github.devicetrust.TrustLevel
+
+val deviceTrust = DeviceTrust.create()
+val assessment = deviceTrust.assess()
 
 when (assessment.level) {
-    TrustLevel.LOW_RISK -> Unit
-    TrustLevel.REVIEW -> requestAdditionalVerification()
-    TrustLevel.HIGH_RISK -> deferDecisionToBackend()
+    TrustLevel.LOW_RISK -> allowNormalFlow()
+    TrustLevel.REVIEW -> requireAdditionalVerification()
+    TrustLevel.HIGH_RISK -> sendForServerReview()
 }
 ```
 
-To apply product-specific policy without changing evidence collection:
+`assess()` performs file and system inspection and runs on an I/O dispatcher. Call it from a lifecycle-aware coroutine, such as `viewModelScope`.
 
 ```kotlin
-val client = DeviceTrust.create(
-    DefaultTrustPolicy(reviewThreshold = 30, highRiskThreshold = 70)
+viewModelScope.launch {
+    val assessment = deviceTrust.assess()
+    _state.update { it.copy(assessment = assessment) }
+}
+```
+
+## Assessment results
+
+`TrustAssessment` contains:
+
+| Property | Description |
+|---|---|
+| `score` | Risk score from `0` to `100` |
+| `level` | `LOW_RISK`, `REVIEW`, or `HIGH_RISK` |
+| `signals` | Detected integrity signals ordered by weight |
+| `evidence` | Versioned evidence used to produce the assessment |
+| `isRootOrHookingSuspected` | Whether root or runtime-hooking signals were found |
+| `isEmulatorSuspected` | Whether emulator signals were found |
+| `isSystemIntegritySuspected` | Whether boot or system-integrity signals were found |
+
+Each `TrustSignal` provides an identifier, category, weight, title, and detail value.
+
+```kotlin
+assessment.signals.forEach { signal ->
+    Log.d(
+        "DeviceTrust",
+        "${signal.category}: ${signal.id} (${signal.weight})"
+    )
+}
+```
+
+Available signal categories are:
+
+- `ROOT`
+- `HOOKING`
+- `EMULATOR`
+- `SYSTEM_INTEGRITY`
+
+## Custom risk policy
+
+The default policy uses review and high-risk thresholds of `25` and `60`. Supply different thresholds when creating the client:
+
+```kotlin
+import io.github.devicetrust.DefaultTrustPolicy
+import io.github.devicetrust.DeviceTrust
+
+val deviceTrust = DeviceTrust.create(
+    policy = DefaultTrustPolicy(
+        reviewThreshold = 30,
+        highRiskThreshold = 70,
+    )
 )
 ```
 
-Consumers can also call `collectEvidence()` and evaluate the returned `DeviceEvidence` on their backend. Persist `schemaVersion` with serialized evidence; signal IDs and schemas must be treated as versioned contracts.
+Applications that require a different scoring model can implement `TrustPolicy`:
 
-## Detection layers
+```kotlin
+val policy = TrustPolicy { evidence ->
+    evaluateWithApplicationPolicy(evidence)
+}
 
-- Native raw `openat`/`read` syscalls inspect procfs and device artifacts without Java file APIs.
-- Mount information is inspected for Magisk, KernelSU, APatch, and overlay markers.
-- Process maps are inspected for known instrumentation frameworks and anonymous RWX mappings.
-- `TracerPid` reports attached tracing without mutating process state through `PTRACE_TRACEME`.
-- Emulator evidence includes QEMU/goldfish device nodes, kernel parameters, hardware properties, and correlated Android `Build` markers.
-- System-integrity evidence includes bootloader lock state, Verified Boot state, test keys, engineering builds, and SELinux enforcement.
+val deviceTrust = DeviceTrust.create(policy)
+```
 
-## Security model
+## Collecting evidence without local scoring
 
-Local detection is attacker-controlled evidence. A modified OS can spoof properties, filter procfs, patch the native library, or hook JNI. Never authorize payments, account recovery, or other valuable operations using the local score alone.
+Use `collectEvidence()` to obtain the signals without applying a policy:
 
-For production, request a Play Integrity standard token close to the protected action, bind its `requestHash` to a server challenge and canonical payload, and decode the token on your backend. Combine its verdict with this library's evidence, account history, recent activity, and transaction risk. Return only short-lived, single-use authorization.
+```kotlin
+val evidence = deviceTrust.collectEvidence()
+```
 
-The library deliberately does not derive cryptographic keys from detection results. Device signals are predictable and do not provide secret entropy.
+`DeviceEvidence` includes a `schemaVersion`, collection timestamp, and list of signals. Store or transmit the schema version together with the evidence so that server implementations can handle future schema changes.
 
-## Build and publish locally
+## Checks
 
-Requirements: Android SDK 36, NDK 27.0.12077973 or compatible, CMake 3.22.1, and JDK 17 or 21.
+DeviceTrust currently checks for:
+
+- Common `su`, Magisk, KernelSU, APatch, and root-related files
+- Suspicious mount and overlay entries
+- Frida, Xposed, LSPosed, Zygisk, and Substrate mappings
+- Anonymous writable and executable memory mappings
+- An attached process tracer
+- QEMU, goldfish, ranchu, and other emulator artifacts
+- Emulator-related kernel parameters and Android build properties
+- Bootloader lock state
+- Android Verified Boot state
+- Test-key and engineering builds
+- SELinux enforcement state
+
+## Security considerations
+
+DeviceTrust provides local risk signals, not proof that a device is trustworthy. An attacker with control of the operating system can modify system properties, filter procfs, hook JNI calls, or patch application code.
+
+Do not use the local result as the only authorization control for payments, account recovery, authentication, or other sensitive operations. Production fraud controls should combine these signals with server-verified Play Integrity results, account history, request context, and transaction risk.
+
+Avoid logging or retaining detailed device evidence unless the application has an appropriate privacy and data-retention policy.
+
+## Project structure
+
+```text
+device-trust/   Android library and native detector
+sample/         Compose sample application
+```
+
+## Building from source
+
+The project requires Android SDK 36, NDK 27.0.12077973 or compatible, CMake 3.22.1, and JDK 17 or 21.
+
+Run the unit tests and build the sample application:
 
 ```bash
 ./gradlew :device-trust:test :sample:assembleDebug
-./gradlew :device-trust:publishReleasePublicationToLocalBuildRepository
 ```
 
-The second command creates a Maven repository under `device-trust/build/repo`. The release AAR contains native libraries for ARM64, ARMv7, x86, and x86_64, source JAR, POM metadata, and consumer R8 rules.
+Publish the library to Maven Local:
 
-Before Maven Central release, verify the `io.github.xheghun` namespace, add a Javadoc artifact, configure artifact signing and Central Portal credentials, and establish API compatibility checks in CI.
+```bash
+./gradlew :device-trust:publishReleasePublicationToMavenLocal
+```
 
-## Deliberate exclusions
+## License
 
-- Strict SoC whitelists reject new or uncommon genuine devices and require a continuously maintained signed backend dataset.
-- CPU timing heuristics vary with thermal throttling, power management, and ARM-hosted emulators.
-- `PTRACE_TRACEME` conflicts with legitimate diagnostics; `TracerPid` is advisory instead.
-- In-memory `.text` comparison requires audited ELF relocation/load-bias handling per ABI.
-- Obfuscation slows analysis but is not a trust boundary and is not bundled into the reproducible build.
-
-Licensed under Apache-2.0. See [LICENSE](LICENSE).
+DeviceTrust is available under the Apache License 2.0. See [LICENSE](LICENSE).
