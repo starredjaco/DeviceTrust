@@ -35,7 +35,7 @@ Add DeviceTrust to the application or library module:
 
 ```kotlin
 dependencies {
-    implementation("com.github.Xheghun:DeviceTrust:0.1.0")
+    implementation("com.github.Xheghun:DeviceTrust:0.1.1")
 }
 ```
 

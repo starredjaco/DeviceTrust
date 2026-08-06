@@ -5,7 +5,7 @@ plugins {
 }
 
 group = providers.environmentVariable("GROUP").orElse("io.github.xheghun").get()
-version = providers.environmentVariable("VERSION").orElse("0.1.0").get()
+version = providers.environmentVariable("VERSION").orElse("0.1.1").get()
 
 android {
     namespace = "io.github.devicetrust"
