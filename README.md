@@ -1,43 +1,97 @@
-# DeviceTrust
+# DeviceTrust Android
 
-DeviceTrust is a compact Android/NDK demonstration of layered device-risk detection. It collects independent local signals for root tooling, runtime hooks, emulators, unlocked or degraded Verified Boot, non-production builds, and permissive SELinux, then produces a risk assessment rather than a misleading boolean verdict.
+DeviceTrust is an Android library that collects layered, local risk evidence for root tooling, runtime hooks, emulators, unlocked or degraded Verified Boot, non-production builds, and permissive SELinux. It returns versioned evidence and a policy result rather than a misleading `isRooted` boolean.
+
+## Modules
+
+- `:device-trust` — publishable Android library containing the public Kotlin API and NDK detector.
+- `:sample` — Compose application that consumes only the library API.
+
+## Install from JitPack
+
+Add JitPack to dependency resolution:
+
+```kotlin
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+        maven(url = "https://jitpack.io")
+    }
+}
+```
+
+Then add the library module. Because this is a multi-module repository, the repository name is part of the group:
+
+```kotlin
+dependencies {
+    implementation("com.github.Xheghun.DeviceTrust:device-trust:0.1.0")
+}
+```
+
+For a source checkout, use `implementation(project(":device-trust"))` as the sample does. A future Maven Central release will use `io.github.xheghun:device-trust:<version>` after that namespace is verified.
+
+## Use
+
+Create one client and call it from a coroutine:
+
+```kotlin
+val client = DeviceTrust.create()
+val assessment = client.assess()
+
+when (assessment.level) {
+    TrustLevel.LOW_RISK -> Unit
+    TrustLevel.REVIEW -> requestAdditionalVerification()
+    TrustLevel.HIGH_RISK -> deferDecisionToBackend()
+}
+```
+
+To apply product-specific policy without changing evidence collection:
+
+```kotlin
+val client = DeviceTrust.create(
+    DefaultTrustPolicy(reviewThreshold = 30, highRiskThreshold = 70)
+)
+```
+
+Consumers can also call `collectEvidence()` and evaluate the returned `DeviceEvidence` on their backend. Persist `schemaVersion` with serialized evidence; signal IDs and schemas must be treated as versioned contracts.
 
 ## Detection layers
 
-- Native raw `openat`/`read` syscalls inspect procfs and device artifacts without relying on Java file APIs.
-- `/proc/self/mountinfo` is inspected for Magisk, KernelSU, APatch, and overlay markers.
-- `/proc/self/maps` is inspected for known instrumentation frameworks and anonymous RWX mappings.
-- `TracerPid` reports attached tracing without calling `PTRACE_TRACEME`, which would interfere with legitimate debuggers and crash tooling.
-- Emulator evidence includes QEMU/goldfish device nodes, kernel parameters, Android hardware properties, and correlated `Build` identity markers.
-- ROM/boot evidence includes bootloader lock, Verified Boot state, test keys, engineering builds, and SELinux enforcement.
+- Native raw `openat`/`read` syscalls inspect procfs and device artifacts without Java file APIs.
+- Mount information is inspected for Magisk, KernelSU, APatch, and overlay markers.
+- Process maps are inspected for known instrumentation frameworks and anonymous RWX mappings.
+- `TracerPid` reports attached tracing without mutating process state through `PTRACE_TRACEME`.
+- Emulator evidence includes QEMU/goldfish device nodes, kernel parameters, hardware properties, and correlated Android `Build` markers.
+- System-integrity evidence includes bootloader lock state, Verified Boot state, test keys, engineering builds, and SELinux enforcement.
 
 ## Security model
 
-Local detection is attacker-controlled evidence. A modified OS can spoof properties, filter procfs, patch the native library, or hook JNI. Therefore:
+Local detection is attacker-controlled evidence. A modified OS can spoof properties, filter procfs, patch the native library, or hook JNI. Never authorize payments, account recovery, or other valuable operations using the local score alone.
 
-1. Never authorize payments, account recovery, or valuable operations from this local score alone.
-2. Request a Play Integrity standard token close to the protected action.
-3. Bind the request with `requestHash` to a server-issued challenge and canonical action payload.
-4. Send the encrypted token to your backend and decode it using Google Play's server API.
-5. Make a server-side policy decision using app integrity, device integrity, account licensing, recent device activity, app-access risk, local signals, account history, and transaction risk.
-6. Return a short-lived, single-use authorization—not a reusable client-side secret.
+For production, request a Play Integrity standard token close to the protected action, bind its `requestHash` to a server challenge and canonical payload, and decode the token on your backend. Combine its verdict with this library's evidence, account history, recent activity, and transaction risk. Return only short-lived, single-use authorization.
 
-The project deliberately does not derive cryptographic keys from detection results. Predictable device signals do not provide key entropy, and a patched client can reproduce or bypass that derivation.
+The library deliberately does not derive cryptographic keys from detection results. Device signals are predictable and do not provide secret entropy.
 
-## Deliberate exclusions
-
-- A strict SoC whitelist would reject new or uncommon genuine devices and requires a continuously maintained, signed backend dataset.
-- CPU timing and translation heuristics are unstable under thermal throttling, power management, and modern ARM-hosted emulators.
-- `PTRACE_TRACEME` is not used because it mutates process state and conflicts with legitimate diagnostics. `TracerPid` is an advisory alternative.
-- In-memory `.text` comparison needs robust ELF relocation/load-bias handling per ABI and should live in a separately audited hardening component. Incorrect implementations create crashes and false positives.
-- Obfuscator-LLVM is not bundled. Use a maintained, reproducible toolchain only after legal/licensing review; obfuscation delays analysis but is not a trust boundary.
-
-## Build
+## Build and publish locally
 
 Requirements: Android SDK 36, NDK 27.0.12077973 or compatible, CMake 3.22.1, and JDK 17 or 21.
 
 ```bash
-./gradlew test assembleDebug
+./gradlew :device-trust:test :sample:assembleDebug
+./gradlew :device-trust:publishReleasePublicationToLocalBuildRepository
 ```
 
-For production, replace `com.example.devicetrust`, configure Play App Signing and Play Integrity in Play Console, add the server integration, tune thresholds using labeled telemetry, and test on a diverse physical-device fleet. Do not log raw device evidence without a defined retention and privacy policy.
+The second command creates a Maven repository under `device-trust/build/repo`. The release AAR contains native libraries for ARM64, ARMv7, x86, and x86_64, source JAR, POM metadata, and consumer R8 rules.
+
+Before Maven Central release, verify the `io.github.xheghun` namespace, add a Javadoc artifact, configure artifact signing and Central Portal credentials, and establish API compatibility checks in CI.
+
+## Deliberate exclusions
+
+- Strict SoC whitelists reject new or uncommon genuine devices and require a continuously maintained signed backend dataset.
+- CPU timing heuristics vary with thermal throttling, power management, and ARM-hosted emulators.
+- `PTRACE_TRACEME` conflicts with legitimate diagnostics; `TracerPid` is advisory instead.
+- In-memory `.text` comparison requires audited ELF relocation/load-bias handling per ABI.
+- Obfuscation slows analysis but is not a trust boundary and is not bundled into the reproducible build.
+
+Licensed under Apache-2.0. See [LICENSE](LICENSE).

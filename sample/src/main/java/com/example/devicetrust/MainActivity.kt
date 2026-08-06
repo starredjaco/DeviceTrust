@@ -20,8 +20,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.devicetrust.detection.*
 import com.example.devicetrust.ui.theme.DeviceTrustTheme
+import io.github.devicetrust.*
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -75,9 +75,9 @@ private fun AssessmentContent(assessment: TrustAssessment, onScan: () -> Unit, m
         item { RiskCard(assessment) }
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatusChip("Root / hooks", assessment.isRootSuspected, Modifier.weight(1f))
+                StatusChip("Root / hooks", assessment.isRootOrHookingSuspected, Modifier.weight(1f))
                 StatusChip("Emulator", assessment.isEmulatorSuspected, Modifier.weight(1f))
-                StatusChip("ROM / boot", assessment.isCustomRomSuspected, Modifier.weight(1f))
+                StatusChip("ROM / boot", assessment.isSystemIntegritySuspected, Modifier.weight(1f))
             }
         }
         item {
@@ -98,7 +98,7 @@ private fun AssessmentContent(assessment: TrustAssessment, onScan: () -> Unit, m
 @Composable
 private fun RiskCard(assessment: TrustAssessment) {
     val accent = when (assessment.level) {
-        TrustLevel.TRUSTED -> Color(0xFF5EE3B1)
+        TrustLevel.LOW_RISK -> Color(0xFF5EE3B1)
         TrustLevel.REVIEW -> Color(0xFFFFCA65)
         TrustLevel.HIGH_RISK -> Color(0xFFFF7C7C)
     }
@@ -135,7 +135,7 @@ private fun categoryColor(category: SignalCategory) = when (category) {
     SignalCategory.ROOT -> Color(0xFFFF7C7C)
     SignalCategory.HOOKING -> Color(0xFFD89BFF)
     SignalCategory.EMULATOR -> Color(0xFF8BB8FF)
-    SignalCategory.ROM -> Color(0xFFFFCA65)
+    SignalCategory.SYSTEM_INTEGRITY -> Color(0xFFFFCA65)
 }
 
 @Preview(showBackground = true)
@@ -144,10 +144,14 @@ private fun TrustScreenPreview() = DeviceTrustTheme {
     TrustScreen(
         TrustUiState(
             scanning = false,
-            assessment = TrustAssessment(68, TrustLevel.HIGH_RISK, listOf(
-                TrustSignal("mount", SignalCategory.ROOT, 35, "Suspicious mount namespace", "Magisk marker exposed"),
-                TrustSignal("boot", SignalCategory.ROM, 35, "Bootloader unlocked", "ro.boot.flash.locked=0"),
-            )),
+            assessment = TrustAssessment(
+                score = 68,
+                level = TrustLevel.HIGH_RISK,
+                evidence = DeviceEvidence(1, 0, listOf(
+                    TrustSignal("mount", SignalCategory.ROOT, 35, "Suspicious mount namespace", "Magisk marker exposed"),
+                    TrustSignal("boot", SignalCategory.SYSTEM_INTEGRITY, 35, "Bootloader unlocked", "ro.boot.flash.locked=0"),
+                )),
+            ),
         ),
         onScan = {},
     )

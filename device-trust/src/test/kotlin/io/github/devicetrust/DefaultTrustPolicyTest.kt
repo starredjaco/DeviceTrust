@@ -1,28 +1,30 @@
-package com.example.devicetrust.detection
+package io.github.devicetrust
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class RiskEngineTest {
-    @Test fun `no signals is trusted`() {
-        val result = RiskEngine.assess(emptyList())
+class DefaultTrustPolicyTest {
+    private val policy = DefaultTrustPolicy()
+
+    @Test fun `no signals is low risk`() {
+        val result = policy.evaluate(evidence())
         assertEquals(0, result.score)
-        assertEquals(TrustLevel.TRUSTED, result.level)
+        assertEquals(TrustLevel.LOW_RISK, result.level)
     }
 
     @Test fun `independent high confidence signals produce high risk`() {
-        val result = RiskEngine.assess(listOf(
+        val result = policy.evaluate(evidence(
             signal("root", SignalCategory.ROOT, 40),
             signal("hook", SignalCategory.HOOKING, 30),
         ))
         assertEquals(70, result.score)
         assertEquals(TrustLevel.HIGH_RISK, result.level)
-        assertTrue(result.isRootSuspected)
+        assertTrue(result.isRootOrHookingSuspected)
     }
 
     @Test fun `correlated signals have diminishing weight`() {
-        val result = RiskEngine.assess(listOf(
+        val result = policy.evaluate(evidence(
             signal("a", SignalCategory.EMULATOR, 40),
             signal("b", SignalCategory.EMULATOR, 30),
             signal("c", SignalCategory.EMULATOR, 20),
@@ -32,9 +34,15 @@ class RiskEngineTest {
 
     @Test fun `duplicate ids cannot inflate score`() {
         val duplicate = signal("same", SignalCategory.ROOT, 40)
-        assertEquals(40, RiskEngine.assess(listOf(duplicate, duplicate)).score)
+        assertEquals(40, policy.evaluate(evidence(duplicate, duplicate)).score)
     }
 
+    @Test(expected = IllegalArgumentException::class)
+    fun `invalid thresholds are rejected`() {
+        DefaultTrustPolicy(reviewThreshold = 60, highRiskThreshold = 50)
+    }
+
+    private fun evidence(vararg signals: TrustSignal) = DeviceEvidence(1, 123L, signals.toList())
     private fun signal(id: String, category: SignalCategory, weight: Int) =
         TrustSignal(id, category, weight, id, "test")
 }
