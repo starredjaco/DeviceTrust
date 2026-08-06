@@ -30,7 +30,7 @@ android {
 }
 
 dependencies {
-    implementation(project(":device-trust"))
+    implementation(libs.device.trust)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
