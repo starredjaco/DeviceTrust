@@ -1,4 +1,4 @@
-package io.github.devicetrust
+package com.xheghun.devicetrust
 
 /** Entry point for creating a device-risk client. */
 public object DeviceTrust {

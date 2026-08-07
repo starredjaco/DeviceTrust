@@ -2,9 +2,9 @@ package com.example.devicetrust
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import io.github.devicetrust.DeviceTrust
-import io.github.devicetrust.DeviceTrustClient
-import io.github.devicetrust.TrustAssessment
+import com.xheghun.devicetrust.DeviceTrust
+import com.xheghun.devicetrust.DeviceTrustClient
+import com.xheghun.devicetrust.TrustAssessment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow

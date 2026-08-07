@@ -1,4 +1,4 @@
-package io.github.devicetrust
+package com.xheghun.devicetrust
 
 public fun interface TrustPolicy {
     public fun evaluate(evidence: DeviceEvidence): TrustAssessment

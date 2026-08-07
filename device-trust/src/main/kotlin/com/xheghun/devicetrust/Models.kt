@@ -1,4 +1,4 @@
-package io.github.devicetrust
+package com.xheghun.devicetrust
 
 public enum class SignalCategory { ROOT, HOOKING, EMULATOR, SYSTEM_INTEGRITY }
 public enum class TrustLevel { LOW_RISK, REVIEW, HIGH_RISK }

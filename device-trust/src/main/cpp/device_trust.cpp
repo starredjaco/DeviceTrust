@@ -163,7 +163,7 @@ std::vector<Signal> collect() {
 } // namespace
 
 extern "C" JNIEXPORT jobjectArray JNICALL
-Java_io_github_devicetrust_internal_NativeSignalSource_collectEncoded(JNIEnv* env, jobject) {
+Java_com_xheghun_devicetrust_internal_NativeSignalSource_collectEncoded(JNIEnv* env, jobject) {
     auto signals = collect();
     jclass stringClass = env->FindClass("java/lang/String");
     jobjectArray result = env->NewObjectArray(static_cast<jsize>(signals.size()), stringClass, nullptr);

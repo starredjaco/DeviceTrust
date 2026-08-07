@@ -1,7 +1,7 @@
-package io.github.devicetrust.internal
+package com.xheghun.devicetrust.internal
 
-import io.github.devicetrust.SignalCategory
-import io.github.devicetrust.TrustSignal
+import com.xheghun.devicetrust.SignalCategory
+import com.xheghun.devicetrust.TrustSignal
 
 internal object NativeSignalSource {
     init { System.loadLibrary("devicetrust") }

@@ -1,7 +1,7 @@
-package io.github.devicetrust
+package com.xheghun.devicetrust
 
-import io.github.devicetrust.internal.BuildSignalSource
-import io.github.devicetrust.internal.NativeSignalSource
+import com.xheghun.devicetrust.internal.BuildSignalSource
+import com.xheghun.devicetrust.internal.NativeSignalSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
