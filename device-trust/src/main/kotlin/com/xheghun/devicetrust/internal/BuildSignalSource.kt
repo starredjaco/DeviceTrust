@@ -1,8 +1,8 @@
-package io.github.devicetrust.internal
+package com.xheghun.devicetrust.internal
 
 import android.os.Build
-import io.github.devicetrust.SignalCategory
-import io.github.devicetrust.TrustSignal
+import com.xheghun.devicetrust.SignalCategory
+import com.xheghun.devicetrust.TrustSignal
 
 internal object BuildSignalSource {
     fun collect(): List<TrustSignal> = buildList {

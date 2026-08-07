@@ -35,7 +35,7 @@ Add DeviceTrust to the application or library module:
 
 ```kotlin
 dependencies {
-    implementation("com.github.Xheghun:DeviceTrust:0.1.1")
+    implementation("com.github.Xheghun:DeviceTrust:0.1.2")
 }
 ```
 
@@ -44,8 +44,8 @@ dependencies {
 Create a client and run an assessment from a coroutine:
 
 ```kotlin
-import io.github.devicetrust.DeviceTrust
-import io.github.devicetrust.TrustLevel
+import com.xheghun.devicetrust.DeviceTrust
+import com.xheghun.devicetrust.TrustLevel
 
 val deviceTrust = DeviceTrust.create()
 val assessment = deviceTrust.assess()
@@ -103,8 +103,8 @@ Available signal categories are:
 The default policy uses review and high-risk thresholds of `25` and `60`. Supply different thresholds when creating the client:
 
 ```kotlin
-import io.github.devicetrust.DefaultTrustPolicy
-import io.github.devicetrust.DeviceTrust
+import com.xheghun.devicetrust.DefaultTrustPolicy
+import com.xheghun.devicetrust.DeviceTrust
 
 val deviceTrust = DeviceTrust.create(
     policy = DefaultTrustPolicy(
