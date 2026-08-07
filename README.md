@@ -175,12 +175,6 @@ Run the unit tests and build the sample application:
 ./gradlew :device-trust:test :sample:assembleDebug
 ```
 
-Publish the library to Maven Local:
-
-```bash
-./gradlew :device-trust:publishReleasePublicationToMavenLocal
-```
-
 ## License
 
 DeviceTrust is available under the Apache License 2.0. See [LICENSE](LICENSE).
